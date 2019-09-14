@@ -13,21 +13,20 @@ from fastai.callbacks import *
 from fastai.distributed import *
 from fastprogress import fastprogress
 from torchvision.models import *
-#from fastai.vision.models.xresnet import *
-#from fastai.vision.models.xresnet2 import *
-#from fastai.vision.models.presnet import *
-#from x2resnet import *
-from mxresnet import *
+
+from models import model_list
 from functools import partial
 
 torch.backends.cudnn.benchmark = True
 fastprogress.MAX_COLS = 80
 
+from config.config import config
+
 def get_data(size, woof, bs, workers=None):
  #   if   size<=128: path = URLs.IMAGEWOOF_160 if woof else URLs.IMAGENETTE_160
  #   elif size<=224: path = URLs.IMAGEWOOF_320 if woof else URLs.IMAGENETTE_320
    # else          : 
-   if woof:
+    if woof:
         path = URLs.IMAGEWOOF    # if woof 
     else:
         path = URLs.IMAGENETTE
@@ -45,7 +44,7 @@ def get_data(size, woof, bs, workers=None):
 #from radam import *
 #from novograd import *
 #from rangervar import *
-from ranger import *
+from modules.ranger import *
 #from ralamb import *
 #from over9000 import *
 #from lookahead import *
@@ -62,7 +61,7 @@ def fit_with_annealing(learn:Learner, num_epoch:int, lr:float=defaults.lr, annea
     sched = GeneralScheduler(learn, phases)
     learn.callbacks.append(sched)
     learn.fit(num_epoch)
-    
+
 def train(
         gpu:Param("GPU to run on", str)=None,
         woof: Param("Use imagewoof (otherwise imagenette)", int)=0,
@@ -146,7 +145,7 @@ def train(
 
 @call_parse
 def main(
-        run: Param("Number of run", int)=5,
+        run: Param("Number of run", int)=1,
         gpu:Param("GPU to run on", str)=None,
         woof: Param("Use imagewoof (otherwise imagenette)", int)=0,
         lr: Param("Learning rate", float)=1e-3,

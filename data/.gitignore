@@ -4,3 +4,5 @@
 # Except this file
 !.gitignore
 !duplicates.py
+!defect_types.csv
+!split.csv
