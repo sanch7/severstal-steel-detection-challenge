@@ -2,9 +2,13 @@ from fastai.vision import *
 
 def get_steel_transforms():
     train_tfms = [
-                  RandTransform(tfm=TfmCrop (crop_pad), 
-                        kwargs={'row_pct': (0, 1), 'col_pct': (0, 1), 'padding_mode': 'reflection'}, 
-                        p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True),
+                  # # crop_pad only center cropping for some reason
+                  # RandTransform(tfm=TfmCrop (crop_pad), 
+                  #       kwargs={'row_pct': (0, 1), 'col_pct': (0, 1), 'padding_mode': 'reflection'}, 
+                  #       p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True),
+                  RandTransform(tfm=TfmPixel (crop), 
+                    kwargs={'size': 256, 'row_pct': (0, 1), 'col_pct': (0, 1)}, 
+                    p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True),
                   RandTransform(tfm=TfmPixel (flip_lr), 
                         kwargs={}, 
                         p=0.5, resolved={}, do_run=True, is_random=True, use_on_y=True),
@@ -26,24 +30,36 @@ def get_steel_transforms():
                   ]
 
     valid_tfms = [
-                  RandTransform(tfm=TfmCrop (crop_pad), 
-                    kwargs={'row_pct': (0, 1), 'col_pct': (0, 1), 'padding_mode': 'reflection'}, 
+                  # # crop_pad only center cropping for some reason
+                  # RandTransform(tfm=TfmCrop (crop_pad), 
+                  #   kwargs={'row_pct': (0, 1), 'col_pct': (0, 1), 'padding_mode': 'reflection'}, 
+                  #   p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True)
+                  RandTransform(tfm=TfmPixel (crop), 
+                    kwargs={'size': 256, 'row_pct': (0, 1), 'col_pct': (0, 1)}, 
                     p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True)
                  ]
     return (train_tfms, valid_tfms)
 
 
-def get_data_bunch(split_df):
+def get_data_bunch(split_df, batch_size=1, load_valid_crops=True):
     train_data_paths, valid_data_paths, train_label_paths, valid_label_paths = [], [], [], []
     for i in range(len(split_df)):
         data_path = './data/train_images/' + split_df.loc[i, 'ImageId_ClassId']
         label_path = './data/train_masks/' + split_df.loc[i, 'ImageId_ClassId'].replace('.jpg', '.png')
         if split_df.loc[i, 'is_valid']:
-            for i in range(7):
-                valid_data_paths.append(Path(data_path.replace('.jpg', '_c{}.jpg'.format(i))))
-                valid_label_paths.append(Path(label_path.replace('.png', '_c{}.png'.format(i))))
+            if load_valid_crops:
+                for i in range(7):
+                    valid_data_paths.append(Path(data_path.replace('.jpg', '_c{}.jpg'.format(i))))
+                    valid_label_paths.append(Path(label_path.replace('.png', '_c{}.png'.format(i))))
+            else:
+                valid_data_paths.append(Path(data_path))
+                valid_label_paths.append(Path(label_path))
         else:
-            for _ in range(7):      # So we don't spend a lot of time validating
+            if load_valid_crops:
+                for _ in range(7):      # So we don't spend a lot of time validating
+                    train_data_paths.append(Path(data_path))
+                    train_label_paths.append(Path(label_path))
+            else:
                 train_data_paths.append(Path(data_path))
                 train_label_paths.append(Path(label_path))
 
@@ -56,7 +72,7 @@ def get_data_bunch(split_df):
             .label_from_lists(train_labels=train_label_paths, valid_labels=valid_label_paths, classes=[1, 2, 3, 4]))
 
     data = (src.transform(get_steel_transforms(), size=256, tfm_y=True)
-            .databunch(bs=9)
+            .databunch(bs=batch_size)
             .normalize(imagenet_stats))
 
     return data
