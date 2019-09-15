@@ -1,7 +1,35 @@
 from fastai.vision import *
 
-# def _one_hot(x):
-#     one_hot_label = np.
+def plot_one_hot_ds(ds, idx=0, def_type=1):
+    for i, bt in enumerate(iter(ds)):
+        if i == idx:
+            break
+    img = bt[0].data.numpy()
+    plt.imshow(np.rollaxis(img, 0, 3))
+    plt.imshow(bt[1].data[def_type-1], alpha=0.2)
+
+class ImageSegmentFloat(ImageSegment):
+    def __init__(self, px:Tensor):
+        "Create from raw tensor image data `px`."
+        self._px = px.type(torch.FloatTensor)
+        self._logit_px=None
+        self._flow=None
+        self._affine_mat=None
+        self.sample_kwargs = {}
+
+    @property
+    def data(self)->TensorImage:
+        "Return this image pixels as a `FloatTensor`."
+        return self.px.float()
+
+class SegmentationLabelListOneHot(SegmentationLabelList):
+    def open(self, fn):
+        mask = open_mask(fn).data
+        mask = torch.cat([mask==1, mask==2, mask==3, mask==4], dim=0).float()
+        return ImageSegmentFloat(mask)
+
+class SegmentationItemListOneHot(SegmentationItemList):
+    _label_cls = SegmentationLabelListOneHot
 
 def get_steel_transforms(size=256):
     train_tfms = [
@@ -44,7 +72,7 @@ def get_steel_transforms(size=256):
     return (train_tfms, valid_tfms)
 
 
-def get_data_bunch(split_df, size=256, batch_size=1, load_valid_crops=True, load_train_crops=False):
+def get_data_bunch(split_df, size=256, batch_size=1, one_hot=True, load_valid_crops=True, load_train_crops=False):
     train_data_paths, valid_data_paths, train_label_paths, valid_label_paths = [], [], [], []
     for i in range(len(split_df)):
         data_path = './data/train_images/' + split_df.loc[i, 'ImageId_ClassId']
@@ -70,11 +98,12 @@ def get_data_bunch(split_df, size=256, batch_size=1, load_valid_crops=True, load
                 train_data_paths.append(Path(data_path))
                 train_label_paths.append(Path(label_path))
 
-    train = SegmentationItemList(train_data_paths)
-    valid = SegmentationItemList(valid_data_paths)
+    seg_item_list = SegmentationItemListOneHot if one_hot else SegmentationItemList 
+    train = seg_item_list(train_data_paths)
+    valid = seg_item_list(valid_data_paths)
     # train_label = SegmentationLabelList(train_label_paths)
     # valid_label = SegmentationLabelList(valid_label_paths)
-    src = (SegmentationItemList.from_folder('.')
+    src = (seg_item_list.from_folder('.')
             .split_by_list(train=train, valid=valid)
             .label_from_lists(train_labels=train_label_paths, valid_labels=valid_label_paths, classes=[1, 2, 3, 4]))
 

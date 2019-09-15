@@ -11,10 +11,11 @@ config.desc = "Initial run"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
+config.debug_run = True
 
 # model framework
-config.batch_size = 8
-config.epochs = 4
+config.batch_size = 36
+config.epochs = 16
 config.imsize = 256
 config.load_valid_crops = True
 config.load_train_crops = False
