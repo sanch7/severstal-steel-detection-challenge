@@ -1,13 +1,16 @@
 from fastai.vision import *
 
-def get_steel_transforms():
+# def _one_hot(x):
+#     one_hot_label = np.
+
+def get_steel_transforms(size=256):
     train_tfms = [
                   # # crop_pad only center cropping for some reason
                   # RandTransform(tfm=TfmCrop (crop_pad), 
                   #       kwargs={'row_pct': (0, 1), 'col_pct': (0, 1), 'padding_mode': 'reflection'}, 
                   #       p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True),
                   RandTransform(tfm=TfmPixel (crop), 
-                    kwargs={'size': 256, 'row_pct': (0, 1), 'col_pct': (0, 1)}, 
+                    kwargs={'size': size, 'row_pct': (0, 1), 'col_pct': (0, 1)}, 
                     p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True),
                   RandTransform(tfm=TfmPixel (flip_lr), 
                         kwargs={}, 
@@ -35,13 +38,13 @@ def get_steel_transforms():
                   #   kwargs={'row_pct': (0, 1), 'col_pct': (0, 1), 'padding_mode': 'reflection'}, 
                   #   p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True)
                   RandTransform(tfm=TfmPixel (crop), 
-                    kwargs={'size': 256, 'row_pct': (0, 1), 'col_pct': (0, 1)}, 
+                    kwargs={'size': size, 'row_pct': (0, 1), 'col_pct': (0, 1)}, 
                     p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True)
                  ]
     return (train_tfms, valid_tfms)
 
 
-def get_data_bunch(split_df, batch_size=1, load_valid_crops=True):
+def get_data_bunch(split_df, size=256, batch_size=1, load_valid_crops=True, load_train_crops=False):
     train_data_paths, valid_data_paths, train_label_paths, valid_label_paths = [], [], [], []
     for i in range(len(split_df)):
         data_path = './data/train_images/' + split_df.loc[i, 'ImageId_ClassId']
@@ -56,9 +59,13 @@ def get_data_bunch(split_df, batch_size=1, load_valid_crops=True):
                 valid_label_paths.append(Path(label_path))
         else:
             if load_valid_crops:
-                for _ in range(7):      # So we don't spend a lot of time validating
-                    train_data_paths.append(Path(data_path))
-                    train_label_paths.append(Path(label_path))
+                for i in range(7):      # So we don't spend a lot of time validating
+                    if load_train_crops:
+                        train_data_paths.append(Path(data_path.replace('.jpg', '_c{}.jpg'.format(i))))
+                        train_label_paths.append(Path(label_path.replace('.png', '_c{}.png'.format(i))))
+                    else:
+                        train_data_paths.append(Path(data_path))
+                        train_label_paths.append(Path(label_path))
             else:
                 train_data_paths.append(Path(data_path))
                 train_label_paths.append(Path(label_path))
@@ -71,9 +78,8 @@ def get_data_bunch(split_df, batch_size=1, load_valid_crops=True):
             .split_by_list(train=train, valid=valid)
             .label_from_lists(train_labels=train_label_paths, valid_labels=valid_label_paths, classes=[1, 2, 3, 4]))
 
-    data = (src.transform(get_steel_transforms(), size=256, tfm_y=True)
+    data = (src.transform(get_steel_transforms(size=size), size=size, tfm_y=True)
             .databunch(bs=batch_size)
             .normalize(imagenet_stats))
 
     return data
-

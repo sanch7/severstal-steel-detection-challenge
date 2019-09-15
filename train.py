@@ -5,7 +5,9 @@
 # adapted from https://github.com/fastai/fastai/blob/master/examples/train_imagenette.py
 # changed per gpu bs for bs_rat
 
-
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 
 from fastai.script import *
 from fastai.vision import *
@@ -14,32 +16,12 @@ from fastai.distributed import *
 from fastprogress import fastprogress
 from torchvision.models import *
 
-from models import model_list
 from functools import partial
 
-torch.backends.cudnn.benchmark = True
-fastprogress.MAX_COLS = 80
-
-from config.config import config
-
-def get_data(size, woof, bs, workers=None):
- #   if   size<=128: path = URLs.IMAGEWOOF_160 if woof else URLs.IMAGENETTE_160
- #   elif size<=224: path = URLs.IMAGEWOOF_320 if woof else URLs.IMAGENETTE_320
-   # else          : 
-    if woof:
-        path = URLs.IMAGEWOOF    # if woof 
-    else:
-        path = URLs.IMAGENETTE
-    path = untar_data(path)
-
-    n_gpus = num_distrib() or 1
-    if workers is None: workers = min(8, num_cpus()//n_gpus)
-
-    return (ImageList.from_folder(path).split_by_folder(valid='val')
-            .label_from_folder().transform(([flip_lr(p=0.5)], []), size=size)
-            .databunch(bs=bs, num_workers=workers)
-            .presize(size, scale=(0.35,1))
-            .normalize(imagenet_stats))
+from models import model_list
+from modules.losses import FocalLoss
+from modules.metrics import dice
+from utils.databunch import get_data_bunch
 
 #from radam import *
 #from novograd import *
@@ -52,6 +34,12 @@ from modules.ranger import *
 #from rangernovo import *
 #from rangerlars import *
 
+torch.backends.cudnn.benchmark = True
+fastprogress.MAX_COLS = 80
+
+from config.config import config
+
+
 def fit_with_annealing(learn:Learner, num_epoch:int, lr:float=defaults.lr, annealing_start:float=0.7)->None:
     n = len(learn.data.train_dl)
     anneal_start = int(n*num_epoch*annealing_start)
@@ -62,33 +50,16 @@ def fit_with_annealing(learn:Learner, num_epoch:int, lr:float=defaults.lr, annea
     learn.callbacks.append(sched)
     learn.fit(num_epoch)
 
-def train(
-        gpu:Param("GPU to run on", str)=None,
-        woof: Param("Use imagewoof (otherwise imagenette)", int)=0,
-        lr: Param("Learning rate", float)=1e-3,
-        size: Param("Size (px: 128,192,224)", int)=128,
-        alpha: Param("Alpha", float)=0.99,
-        mom: Param("Momentum", float)=0.9,
-        eps: Param("epsilon", float)=1e-6,
-        epochs: Param("Number of epochs", int)=5,
-        bs: Param("Batch size", int)=256,
-        mixup: Param("Mixup", float)=0.,
-        opt: Param("Optimizer (adam,rms,sgd)", str)='adam',
-        arch: Param("Architecture (xresnet34, xresnet50)", str)='xresnet50',
-        sa: Param("Self-attention", int)=0,
-        sym: Param("Symmetry for self-attention", int)=0,
-        dump: Param("Print model; don't train", int)=0,
-        lrfinder: Param("Run learning rate finder; don't train", int)=0,
-        log: Param("Log file name", str)='log',
-        sched_type: Param("LR schedule type", str)='one_cycle',
-        ann_start: Param("Mixup", float)=-1.0,
-        ):
-    "Distributed training of Imagenette."
+def train(config):
+
+    bs_one_gpu = config.batch_size
+    gpu = setup_distrib(config.gpu)
+    if gpu is None: config.batch_size *= torch.cuda.device_count()
     
-    bs_one_gpu = bs
-    gpu = setup_distrib(gpu)
-    if gpu is None: bs *= torch.cuda.device_count()
-        
+    opt = config.optimizer
+    mom = config.mom
+    alpha = config.alpha
+    eps = config.eps
     if   opt=='adam' : opt_func = partial(optim.Adam, betas=(mom,alpha), eps=eps)
     elif opt=='radam' : opt_func = partial(RAdam, betas=(mom,alpha), eps=eps)
     elif opt=='novograd' : opt_func = partial(Novograd, betas=(mom,alpha), eps=eps)
@@ -103,74 +74,61 @@ def train(
     elif opt=='rangernovo': opt_func=partial(RangerNovo)
     elif opt=='rangerlars':opt_func=partial(RangerLars)
 
-    data = get_data(size, woof, bs)
-    bs_rat = bs/bs_one_gpu   #originally bs/256
+    split_df = pd.read_csv(config.split_csv)
+    data = get_data_bunch(split_df, size=config.imsize, batch_size=config.batch_size,
+                load_valid_crops=config.load_valid_crops, load_train_crops=config.load_train_crops)
+    bs_rat = config.batch_size/bs_one_gpu   #originally bs/256
     if gpu is not None: bs_rat *= max(num_distrib(), 1)
-    if not gpu: print(f'lr: {lr}; eff_lr: {lr*bs_rat}; size: {size}; alpha: {alpha}; mom: {mom}; eps: {eps}')
-    lr *= bs_rat
+    if not gpu: print(f'lr: {config.lr}; eff_lr: {config.lr*bs_rat}; size: {config.imsize}; alpha: {alpha}; mom: {mom}; eps: {eps}')
+    config.lr *= bs_rat
 
-    m = globals()[arch]
+    Net = getattr(model_list, config.model_name)
+    net = Net(encoder=config.unet_encoder, n_classes=config.num_classes, img_size=(config.imsize, config.imsize),
+        blur=config.unet_blur, blur_final=config.unet_blur_final, self_attention=config.unet_self_attention,
+        y_range=config.unet_y_range, last_cross=config.unet_last_cross, bottle=config.unet_bottle)
     
-    log_cb = partial(CSVLogger,filename=log)
+    log_cb = partial(CSVLogger,filename=config.log_file)
     
-    learn = (Learner(data, m(c_out=10, sa=sa,sym=sym), wd=1e-2, opt_func=opt_func,
-             metrics=[accuracy,top_k_accuracy],
+    loss_func = FocalLoss(alpha=config.focal_alpha, gamma=config.focal_gamma)
+
+    learn = (Learner(data, net, wd=config.weight_decay, opt_func=opt_func,
+             metrics=[accuracy,top_k_accuracy,dice],
              bn_wd=False, true_wd=True,
-             loss_func = LabelSmoothingCrossEntropy(),
+             loss_func = loss_func,
+             # loss_func = LabelSmoothingCrossEntropy(),
              callback_fns=[log_cb])
             )
-    print(learn.path)
+    print("Learn path: ", learn.path)
     n = len(learn.data.train_dl)
-    ann_start2= int(n*epochs*ann_start)
+    ann_start2= int(n*config.epochs*config.ann_start)
     print(ann_start2," annealing start")
     
-    if dump: print(learn.model); exit()
-    if mixup: learn = learn.mixup(alpha=mixup)
-    learn = learn.to_fp16(dynamic=True)
+    if config.dump: print(learn.model); exit()
+    if config.mixup: learn = learn.mixup(alpha=config.mixup)
+    if config.fp16: learn = learn.to_fp16(dynamic=True)
     if gpu is None:       learn.to_parallel()
     elif num_distrib()>1: learn.to_distributed(gpu) # Requires `-m fastai.launch`
     
-    if lrfinder:
+    if config.lrfinder:
         # run learning rate finder
         IN_NOTEBOOK = 1
-        learn.lr_find(wd=1e-2)
+        learn.lr_find(wd=config.weight_decay)
         learn.recorder.plot()
     else:
-        if sched_type == 'one_cycle': 
-            learn.fit_one_cycle(epochs, lr, div_factor=10, pct_start=0.3)
-        elif sched_type == 'flat_and_anneal': 
-            fit_with_annealing(learn, epochs, lr, ann_start)
+        if config.sched_type == 'one_cycle': 
+            learn.fit_one_cycle(config.epochs, config.lr, div_factor=10, pct_start=0.3)
+        elif config.sched_type == 'flat_and_anneal': 
+            fit_with_annealing(learn, config.epochs, config.lr, config.ann_start)
     
     return learn.recorder.metrics[-1][0]
 
-@call_parse
-def main(
-        run: Param("Number of run", int)=1,
-        gpu:Param("GPU to run on", str)=None,
-        woof: Param("Use imagewoof (otherwise imagenette)", int)=0,
-        lr: Param("Learning rate", float)=1e-3,
-        size: Param("Size (px: 128,192,224)", int)=128,
-        alpha: Param("Alpha", float)=0.99,
-        mom: Param("Momentum", float)=0.9,
-        eps: Param("epsilon", float)=1e-6,
-        epochs: Param("Number of epochs", int)=5,
-        bs: Param("Batch size", int)=256,
-        mixup: Param("Mixup", float)=0.,
-        opt: Param("Optimizer (adam,rms,sgd)", str)='adam',
-        arch: Param("Architecture (mxresnet34, mxresnet50)", str)='mxresnet50',
-        sa: Param("Self-attention", int)=0,
-        sym: Param("Symmetry for self-attention", int)=0,
-        dump: Param("Print model; don't train", int)=0,
-        lrfinder: Param("Run learning rate finder; don't train", int)=0,
-        log: Param("Log file name", str)='log',
-        sched_type: Param("LR schedule type", str)='one_cycle',
-        ann_start: Param("Mixup", float)=-1.0,
-        ):
-
-    acc = np.array(
-        [train(gpu,woof,lr,size,alpha,mom,eps,epochs,bs,mixup,opt,arch,sa,sym,dump,lrfinder,log,sched_type,ann_start)
-                for i in range(run)])
+def main():
+    run = 1
+    acc = np.array([train(config) for i in range(run)])
     
     print(acc)
     print(np.mean(acc))
     print(np.std(acc))
+
+if __name__ == '__main__':
+    main()
