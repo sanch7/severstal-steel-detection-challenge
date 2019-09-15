@@ -5,6 +5,8 @@
 # adapted from https://github.com/fastai/fastai/blob/master/examples/train_imagenette.py
 # changed per gpu bs for bs_rat
 
+import os, sys
+import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -20,8 +22,9 @@ from functools import partial
 
 from models import model_list
 from modules.losses import FocalLoss
-from modules.metrics import dice
+from modules.metrics import accuracy, dice
 from utils.databunch import get_data_bunch
+from utils.callbacks import SaveBestModel
 
 #from radam import *
 #from novograd import *
@@ -40,7 +43,8 @@ fastprogress.MAX_COLS = 80
 from config.config import config
 
 
-def fit_with_annealing(learn:Learner, num_epoch:int, lr:float=defaults.lr, annealing_start:float=0.7)->None:
+def fit_with_annealing(learn:Learner, num_epoch:int, lr:float=defaults.lr, annealing_start:float=0.7,
+                    callbacks:list=None)->None:
     n = len(learn.data.train_dl)
     anneal_start = int(n*num_epoch*annealing_start)
     phase0 = TrainingPhase(anneal_start).schedule_hp('lr', lr)
@@ -48,7 +52,7 @@ def fit_with_annealing(learn:Learner, num_epoch:int, lr:float=defaults.lr, annea
     phases = [phase0, phase1]
     sched = GeneralScheduler(learn, phases)
     learn.callbacks.append(sched)
-    learn.fit(num_epoch)
+    learn.fit(num_epoch, callbacks=callbacks)
 
 def train(config):
 
@@ -75,7 +79,7 @@ def train(config):
     elif opt=='rangerlars':opt_func=partial(RangerLars)
 
     split_df = pd.read_csv(config.split_csv)
-    if config.debug_run: split_df = split_df.loc[:200]
+    if config.debug_run: split_df = split_df.loc[:100]
     data = get_data_bunch(split_df, size=config.imsize, batch_size=config.batch_size,
                 load_valid_crops=config.load_valid_crops, load_train_crops=config.load_train_crops)
 
@@ -93,13 +97,19 @@ def train(config):
     
     loss_func = FocalLoss(alpha=config.focal_alpha, gamma=config.focal_gamma)
 
+    ckpt_dir = "./model_weights/{}/".format(config.exp_name)
+    if not os.path.exists(ckpt_dir):
+        os.mkdir(ckpt_dir)
+
     learn = (Learner(data, net, wd=config.weight_decay, opt_func=opt_func,
-             metrics=[accuracy,top_k_accuracy,dice],
+             metrics=[accuracy,dice],
              bn_wd=False, true_wd=True,
              loss_func = loss_func,
              # loss_func = LabelSmoothingCrossEntropy(),
-             callback_fns=[log_cb])
+             callback_fns=[log_cb],
+             model_dir=ckpt_dir)
             )
+
     print("Learn path: ", learn.path)
     n = len(learn.data.train_dl)
     ann_start2= int(n*config.epochs*config.ann_start)
@@ -117,10 +127,13 @@ def train(config):
         learn.lr_find(wd=config.weight_decay)
         learn.recorder.plot()
     else:
+        best_save_cb = SaveBestModel(learn, ckpt_name='best_dice')
         if config.sched_type == 'one_cycle': 
-            learn.fit_one_cycle(config.epochs, config.lr, div_factor=10, pct_start=0.3)
+            learn.fit_one_cycle(config.epochs, config.lr, div_factor=10, pct_start=0.3,
+                    callbacks=[best_save_cb])
         elif config.sched_type == 'flat_and_anneal': 
-            fit_with_annealing(learn, config.epochs, config.lr, config.ann_start)
+            fit_with_annealing(learn, config.epochs, config.lr, config.ann_start,
+                    callbacks=[best_save_cb])
     
     learn.save('basic_model')
 
