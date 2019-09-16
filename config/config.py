@@ -1,10 +1,11 @@
 import os
 from easydict import EasyDict
+import getpass
 
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run1"
+config.exp_name = "run2"
 config.tboard = True
 config.preload_data = True
 config.desc = "Initial run"
@@ -15,7 +16,10 @@ config.debug_run = False
 
 # model framework
 config.batch_size = 36
-config.epochs = 256
+username = getpass.getuser()
+if username == 'litemax2':
+	config.batch_size = 32
+config.epochs = 64
 config.imsize = 256
 config.load_valid_crops = True
 config.load_train_crops = False
@@ -43,7 +47,7 @@ config.alpha = 0.99
 config.mom = 0.9 # Momentum
 config.eps = 1e-6
 config.mixup = 0.
-config.sched_type = "one_cycle" # LR schedule type
+config.sched_type = "flat_and_anneal" # LR schedule type
 config.ann_start = -1.0 # Annealing start
 
 # misc
