@@ -10,6 +10,7 @@ from functools import partial
 from easydict import EasyDict
 
 from PIL import Image
+import cv2
 
 import torch
 import torch.nn as nn
@@ -48,6 +49,10 @@ config.unet_self_attention = False
 config.unet_y_range = None
 config.unet_last_cross = True
 config.unet_bottle = False
+
+#inference details
+config.best_threshold = 0.5
+config.min_size = 5000
 
 
 class Mish(nn.Module):
@@ -277,6 +282,33 @@ def stitch_prds(preds):
     return fullpred
 
 
+def post_process(probability, threshold, min_size):
+    '''Post processing of each predicted mask, components with lesser number of pixels
+    than `min_size` are ignored'''
+    mask = cv2.threshold(probability, threshold, 1, cv2.THRESH_BINARY)[1]
+    num_component, component = cv2.connectedComponents(mask.astype(np.uint8))
+    predictions = np.zeros((256, 1600), np.float32)
+    num = 0
+    for c in range(1, num_component):
+        p = (component == c)
+        if p.sum() > min_size:
+            predictions[p] = 1
+            num += 1
+    return predictions, num
+
+
+def mask2rle(img):
+    '''
+    img: numpy array, 1 - mask, 0 - background
+    Returns run length as string formated
+    '''
+    pixels= img.T.flatten()
+    pixels = np.concatenate([[0], pixels, [0]])
+    runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
+    runs[1::2] -= runs[::2]
+    return ' '.join(str(x) for x in runs)
+
+
 if __name__ == '__main__':
     net = UnetMxResnet(encoder=config.unet_encoder, n_classes=config.num_classes,
                        img_size=(config.imsize, config.imsize),
@@ -289,10 +321,19 @@ if __name__ == '__main__':
     net = load_weights(net, config.model_save_path)
 
     net = net.half()
+    net.eval()
 
     loaders = [get_dataloader(image_position=pos) for pos in range(7)]
 
+    subm_df = pd.read_csv('./data/sample_submission.csv')
+    subm_idx = 0
     for batches in tqdm(zip(*loaders)):
         preds = [net(b[0].cuda().half()) for b in batches]
         fpreds = stitch_prds(preds)
 
+        for def_idx in range(4):
+            pred, num = post_process(fpreds[0,def_idx,:,:].detach().cpu().float().numpy(), config.best_threshold, config.min_size)
+            rle = mask2rle(pred)
+            subm_df.loc[subm_idx, 'EncodedPixels'] = rle
+            subm_idx+=1
+    subm_df.to_csv('./subm/submission.csv', index=False)
