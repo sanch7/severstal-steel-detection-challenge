@@ -1,6 +1,7 @@
 import os
 import sys
 import glob
+from tqdm import tqdm
 import math
 import numpy as np
 import pandas as pd
@@ -17,6 +18,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
 from fastai.vision.models import DynamicUnet
+from fastai.vision.data import imagenet_stats
 from fastai.torch_core import spectral_norm, tensor, Module
 
 START_POS = list(range(0, 1600 - 256 + 32, 256 - 32))
@@ -30,9 +32,10 @@ config.gpu = None
 config.fp16 = True
 
 # model framework
-config.batch_size = 8
+config.batch_size = 1
 config.imsize = 256
-config.num_workers = os.cpu_count()
+# config.num_workers = os.cpu_count()
+config.num_workers = 0
 
 # architecture details
 config.model_save_path = './model_weights/{}/best_dice.pth'.format(config.exp_name)
@@ -220,19 +223,19 @@ class SteelEvalDataSet(Dataset):
 
     def __getitem__(self, index):
         img = Image.open(self.imlist[index])
-        img = img.crop(self.crop_idx, 0, self.crop_idx + 256, 256)
+        img = img.crop((self.crop_idx, 0, self.crop_idx + 256, 256))
 
         if self.transform:
             img = self.transform(img)
 
-        return img
+        return img, self.imlist[index]
 
 
 def get_dataloader(image_position=0, flip_p=0):
     transform = transforms.Compose([
         transforms.RandomHorizontalFlip(p=flip_p),
         transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        transforms.Normalize(*imagenet_stats)
     ])
 
     test_dataset = SteelEvalDataSet(image_position=image_position, transform=transform)
@@ -265,6 +268,15 @@ def load_weights(net, weight_path):
     return net
 
 
+def stitch_prds(preds):
+    fullpred = torch.zeros(preds[0].shape[0], preds[0].shape[1], 256, 1600, dtype=torch.half, device='cuda:0')
+    for pos, pred in enumerate(preds):
+        fullpred[:,:,:,START_POS[pos]:START_POS[pos]+256] += pred
+    for pos in START_POS[1:]:
+        fullpred[:,:,:,pos:pos+32] /= 2.
+    return fullpred
+
+
 if __name__ == '__main__':
     net = UnetMxResnet(encoder=config.unet_encoder, n_classes=config.num_classes,
                        img_size=(config.imsize, config.imsize),
@@ -275,3 +287,12 @@ if __name__ == '__main__':
     net = net.cuda()
 
     net = load_weights(net, config.model_save_path)
+
+    net = net.half()
+
+    loaders = [get_dataloader(image_position=pos) for pos in range(7)]
+
+    for batches in tqdm(zip(*loaders)):
+        preds = [net(b[0].cuda().half()) for b in batches]
+        fpreds = stitch_prds(preds)
+
