@@ -52,7 +52,7 @@ config.unet_bottle = False
 
 #inference details
 config.best_threshold = 0.5
-config.min_size = 5000
+config.min_size = 3500
 
 
 class Mish(nn.Module):
@@ -217,10 +217,12 @@ for n, e, l in [
 
 
 class SteelEvalDataSet(Dataset):
-    def __init__(self, image_position=0, transform=None):
+    def __init__(self, data_df, image_position=0, transform=None):
         assert image_position in range(7)
         self.crop_idx = START_POS[image_position]
-        self.imlist = glob.glob(TEST_IMAGES_PATH + '/*.jpg')
+        self.imlist = []
+        for i in range(0, len(data_df), 4):
+            self.imlist.append(os.path.join(TEST_IMAGES_PATH, data_df.loc[i, 'ImageId_ClassId'].split('_')[0]))
         self.transform = transform
 
     def __len__(self):
@@ -236,14 +238,14 @@ class SteelEvalDataSet(Dataset):
         return img, self.imlist[index]
 
 
-def get_dataloader(image_position=0, flip_p=0):
+def get_dataloader(data_df, image_position=0, flip_p=0):
     transform = transforms.Compose([
         transforms.RandomHorizontalFlip(p=flip_p),
         transforms.ToTensor(),
         transforms.Normalize(*imagenet_stats)
     ])
 
-    test_dataset = SteelEvalDataSet(image_position=image_position, transform=transform)
+    test_dataset = SteelEvalDataSet(data_df=data_df, image_position=image_position, transform=transform)
 
     test_loader = DataLoader(test_dataset,
                              batch_size=config.batch_size,
@@ -322,10 +324,10 @@ if __name__ == '__main__':
 
     net = net.half()
     net.eval()
-
-    loaders = [get_dataloader(image_position=pos) for pos in range(7)]
-
+    
     subm_df = pd.read_csv('./data/sample_submission.csv')
+    loaders = [get_dataloader(data_df=subm_df, image_position=pos) for pos in range(7)]
+
     subm_idx = 0
     for batches in tqdm(zip(*loaders)):
         preds = [net(b[0].cuda().half()) for b in batches]
