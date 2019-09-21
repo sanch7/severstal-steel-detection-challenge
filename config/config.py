@@ -13,6 +13,7 @@ config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
 config.debug_run = False
+config.model_save_path = lambda : './model_weights/{}/best_dice.pth'.format(config.exp_name)
 
 # model framework
 config.batch_size = 36

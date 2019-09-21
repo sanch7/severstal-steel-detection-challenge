@@ -24,11 +24,12 @@ from fastai.torch_core import spectral_norm, tensor, Module
 
 START_POS = list(range(0, 1600 - 256 + 32, 256 - 32))
 TEST_IMAGES_PATH = './data/test_images'
+TRAIN_IMAGES_PATH = './data/train_images'
 
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run1"
+config.exp_name = "run2"
 config.gpu = None
 config.fp16 = True
 
@@ -39,7 +40,7 @@ config.imsize = 256
 config.num_workers = 0
 
 # architecture details
-config.model_save_path = './model_weights/{}/best_dice.pth'.format(config.exp_name)
+config.model_save_path = lambda : './model_weights/{}/best_dice.pth'.format(config.exp_name)
 config.model_name = "UnetMxResnet"
 config.unet_encoder = "mxresnet18"
 config.num_classes = 4
@@ -217,12 +218,16 @@ for n, e, l in [
 
 
 class SteelEvalDataSet(Dataset):
-    def __init__(self, data_df, image_position=0, transform=None):
+    def __init__(self, data_df, test=True, image_position=0, transform=None):
         assert image_position in range(7)
         self.crop_idx = START_POS[image_position]
         self.imlist = []
-        for i in range(0, len(data_df), 4):
-            self.imlist.append(os.path.join(TEST_IMAGES_PATH, data_df.loc[i, 'ImageId_ClassId'].split('_')[0]))
+        if test:
+            for i in range(0, len(data_df), 4):
+                self.imlist.append(os.path.join(TEST_IMAGES_PATH, data_df.loc[i, 'ImageId_ClassId'].split('_')[0]))
+        else:
+            for i in range(0, len(data_df), 4):
+                self.imlist.append(os.path.join(TRAIN_IMAGES_PATH, data_df.loc[i, 'ImageId_ClassId'].split('_')[0]))
         self.transform = transform
 
     def __len__(self):
@@ -238,14 +243,14 @@ class SteelEvalDataSet(Dataset):
         return img, self.imlist[index]
 
 
-def get_dataloader(data_df, image_position=0, flip_p=0):
+def get_dataloader(data_df, test=True, image_position=0, flip_p=0):
     transform = transforms.Compose([
         transforms.RandomHorizontalFlip(p=flip_p),
         transforms.ToTensor(),
         transforms.Normalize(*imagenet_stats)
     ])
 
-    test_dataset = SteelEvalDataSet(data_df=data_df, image_position=image_position, transform=transform)
+    test_dataset = SteelEvalDataSet(data_df=data_df, test=test, image_position=image_position, transform=transform)
 
     test_loader = DataLoader(test_dataset,
                              batch_size=config.batch_size,
@@ -275,7 +280,7 @@ def load_weights(net, weight_path):
     return net
 
 
-def stitch_prds(preds):
+def stitch_preds(preds):
     fullpred = torch.zeros(preds[0].shape[0], preds[0].shape[1], 256, 1600, dtype=torch.half, device='cuda:0')
     for pos, pred in enumerate(preds):
         fullpred[:,:,:,START_POS[pos]:START_POS[pos]+256] += pred
@@ -320,7 +325,7 @@ if __name__ == '__main__':
 
     net = net.cuda()
 
-    net = load_weights(net, config.model_save_path)
+    net = load_weights(net, config.model_save_path())
 
     net = net.half()
     net.eval()
@@ -331,7 +336,7 @@ if __name__ == '__main__':
     subm_idx = 0
     for batches in tqdm(zip(*loaders)):
         preds = [net(b[0].cuda().half()) for b in batches]
-        fpreds = stitch_prds(preds)
+        fpreds = stitch_preds(preds)
 
         for def_idx in range(4):
             pred, num = post_process(fpreds[0,def_idx,:,:].detach().cpu().float().numpy(), config.best_threshold, config.min_size)
