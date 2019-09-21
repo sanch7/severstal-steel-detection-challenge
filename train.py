@@ -141,7 +141,8 @@ def train(config):
     return learn.recorder.metrics[-1][0]
 
 def main():
-    wandb.init(project="Severstal Steel Defect", name=config.exp_name, config=config)
+    wandb.init(project="Severstal Steel Defect", name=config.exp_name, config=config,
+        notes=config.desc)
 
     run = 1
     acc = np.array([train(config) for i in range(run)])
