@@ -17,6 +17,8 @@ from fastai.callbacks import *
 from fastai.distributed import *
 from fastprogress import fastprogress
 from torchvision.models import *
+import wandb
+from wandb.fastai import WandbCallback
 
 from functools import partial
 
@@ -105,7 +107,7 @@ def train(config):
              bn_wd=False, true_wd=True,
              loss_func = loss_func,
              # loss_func = LabelSmoothingCrossEntropy(),
-             callback_fns=[log_cb],
+             callback_fns=[log_cb, WandbCallback],
              model_dir=ckpt_dir)
             )
 
@@ -139,9 +141,11 @@ def train(config):
     return learn.recorder.metrics[-1][0]
 
 def main():
+    wandb.init(project="Severstal Steel Defect", name=config.exp_name, config=config)
+
     run = 1
     acc = np.array([train(config) for i in range(run)])
-    
+
     print(acc)
     print(np.mean(acc))
     print(np.std(acc))

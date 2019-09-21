@@ -116,7 +116,7 @@ def get_data_bunch(split_df, config):
     train_data_paths, valid_data_paths, train_label_paths, valid_label_paths = [], [], [], []
 
     if config.oversample:
-        split_df = oversample_train(split_df)
+        split_df = oversample_train(split_df, random_seed=config.random_seed)
 
     for i in range(len(split_df)):
         data_path = './data/train_images/' + split_df.loc[i, 'ImageId_ClassId']
