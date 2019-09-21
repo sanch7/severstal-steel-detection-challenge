@@ -80,8 +80,7 @@ def train(config):
 
     split_df = pd.read_csv(config.split_csv)
     if config.debug_run: split_df = split_df.loc[:100]
-    data = get_data_bunch(split_df, size=config.imsize, batch_size=config.batch_size,
-                load_valid_crops=config.load_valid_crops, load_train_crops=config.load_train_crops)
+    data = get_data_bunch(split_df, config=config)
 
     bs_rat = config.batch_size/bs_one_gpu   #originally bs/256
     if gpu is not None: bs_rat *= max(num_distrib(), 1)

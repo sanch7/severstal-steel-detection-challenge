@@ -31,14 +31,14 @@ class SegmentationLabelListOneHot(SegmentationLabelList):
 class SegmentationItemListOneHot(SegmentationItemList):
     _label_cls = SegmentationLabelListOneHot
 
-def get_steel_transforms(size=256):
+def get_steel_transforms(config):
     train_tfms = [
                   # # crop_pad only center cropping for some reason
                   # RandTransform(tfm=TfmCrop (crop_pad), 
                   #       kwargs={'row_pct': (0, 1), 'col_pct': (0, 1), 'padding_mode': 'reflection'}, 
                   #       p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True),
                   RandTransform(tfm=TfmPixel (crop), 
-                    kwargs={'size': size, 'row_pct': (0, 1), 'col_pct': (0, 1)}, 
+                    kwargs={'size': config.imsize, 'row_pct': (0, 1), 'col_pct': (0, 1)}, 
                     p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True),
                   RandTransform(tfm=TfmPixel (flip_lr), 
                         kwargs={}, 
@@ -66,19 +66,63 @@ def get_steel_transforms(size=256):
                   #   kwargs={'row_pct': (0, 1), 'col_pct': (0, 1), 'padding_mode': 'reflection'}, 
                   #   p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True)
                   RandTransform(tfm=TfmPixel (crop), 
-                    kwargs={'size': size, 'row_pct': (0, 1), 'col_pct': (0, 1)}, 
+                    kwargs={'size': config.imsize, 'row_pct': (0, 1), 'col_pct': (0, 1)}, 
                     p=1.0, resolved={}, do_run=True, is_random=True, use_on_y=True)
                  ]
     return (train_tfms, valid_tfms)
 
 
-def get_data_bunch(split_df, size=256, batch_size=1, one_hot=True, load_valid_crops=True, load_train_crops=False):
+def get_label_dict(val_df):
+    label_dict = {0:[], 1:[], 2:[], 3:[], 4:[]}
+    for i in range(len(val_df)):
+        labels = []
+        if val_df.loc[i, '1']!=0: labels.append(1)
+        if val_df.loc[i, '2']!=0: labels.append(2)
+        if val_df.loc[i, '3']!=0: labels.append(3)
+        if val_df.loc[i, '4']!=0: labels.append(4)
+        if len(labels) == 0: labels.append(0)
+        for label in labels:
+            label_dict[label].append(i)
+    return label_dict
+
+
+def get_label_freq(val_df):
+    labelfreq = [((val_df['1'] + val_df['2'] + val_df['3'] + val_df['4']) == 0).sum()]
+    labelfreq.extend([(val_df[i]!=0).sum() for i in ['1', '2', '3', '4']])
+    labelfreq = np.array(labelfreq)
+    return labelfreq
+
+
+def oversample_train(split_df, random_seed=42):
+    """Oversamples so that all classes (including background) have approximately the same freq"""
+    random.seed(random_seed)
+    train_df = split_df[split_df['is_valid'] == False].reset_index(drop=True)
+    val_df = split_df[split_df['is_valid'] == True].reset_index(drop=True)
+
+    label_dict = get_label_dict(train_df)
+    labelfreq = get_label_freq(train_df)
+    diff = labelfreq.max()-labelfreq.min()
+    while (diff > 50):
+        dup = random.choices(label_dict[labelfreq.argmin()], k=diff)
+        train_df = train_df.append(train_df.loc[dup], ignore_index=True)
+        labelfreq = get_label_freq(train_df)
+        diff = labelfreq.max()-labelfreq.min()
+
+    split_df = train_df.append(val_df, ignore_index=True)
+    return split_df
+
+
+def get_data_bunch(split_df, config):
     train_data_paths, valid_data_paths, train_label_paths, valid_label_paths = [], [], [], []
+
+    if config.oversample:
+        split_df = oversample_train(split_df)
+
     for i in range(len(split_df)):
         data_path = './data/train_images/' + split_df.loc[i, 'ImageId_ClassId']
         label_path = './data/train_masks/' + split_df.loc[i, 'ImageId_ClassId'].replace('.jpg', '.png')
         if split_df.loc[i, 'is_valid']:
-            if load_valid_crops:
+            if config.load_valid_crops:
                 for i in range(7):
                     valid_data_paths.append(Path(data_path.replace('.jpg', '_c{}.jpg'.format(i))))
                     valid_label_paths.append(Path(label_path.replace('.png', '_c{}.png'.format(i))))
@@ -86,9 +130,9 @@ def get_data_bunch(split_df, size=256, batch_size=1, one_hot=True, load_valid_cr
                 valid_data_paths.append(Path(data_path))
                 valid_label_paths.append(Path(label_path))
         else:
-            if load_valid_crops:
-                for i in range(7):      # So we don't spend a lot of time validating
-                    if load_train_crops:
+            if config.load_valid_crops:
+                for i in range(config.train_duplicate):      # So we don't spend a lot of time validating
+                    if config.load_train_crops:
                         train_data_paths.append(Path(data_path.replace('.jpg', '_c{}.jpg'.format(i))))
                         train_label_paths.append(Path(label_path.replace('.png', '_c{}.png'.format(i))))
                     else:
@@ -98,7 +142,7 @@ def get_data_bunch(split_df, size=256, batch_size=1, one_hot=True, load_valid_cr
                 train_data_paths.append(Path(data_path))
                 train_label_paths.append(Path(label_path))
 
-    seg_item_list = SegmentationItemListOneHot if one_hot else SegmentationItemList 
+    seg_item_list = SegmentationItemListOneHot if config.one_hot_labels else SegmentationItemList 
     train = seg_item_list(train_data_paths)
     valid = seg_item_list(valid_data_paths)
     # train_label = SegmentationLabelList(train_label_paths)
@@ -107,8 +151,8 @@ def get_data_bunch(split_df, size=256, batch_size=1, one_hot=True, load_valid_cr
             .split_by_list(train=train, valid=valid)
             .label_from_lists(train_labels=train_label_paths, valid_labels=valid_label_paths, classes=[1, 2, 3, 4]))
 
-    data = (src.transform(get_steel_transforms(size=size), size=size, tfm_y=True)
-            .databunch(bs=batch_size)
+    data = (src.transform(get_steel_transforms(config=config), size=config.imsize, tfm_y=True)
+            .databunch(bs=config.batch_size)
             .normalize(imagenet_stats))
 
     return data

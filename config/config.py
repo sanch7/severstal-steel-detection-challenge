@@ -5,10 +5,10 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run2"
+config.exp_name = "run3"
 config.tboard = True
 config.preload_data = True
-config.desc = "Initial run"
+config.desc = "Oversampling, one cycle scheduler"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
@@ -24,6 +24,7 @@ config.epochs = 64
 config.imsize = 256
 config.load_valid_crops = True
 config.load_train_crops = False
+config.one_hot_labels = True
 config.num_workers = os.cpu_count()
 
 # archetecture details
@@ -48,8 +49,10 @@ config.alpha = 0.99
 config.mom = 0.9 # Momentum
 config.eps = 1e-6
 config.mixup = 0.
-config.sched_type = "flat_and_anneal" # LR schedule type
+config.sched_type = "one_cycle" # LR schedule type
 config.ann_start = -1.0 # Annealing start
+config.oversample = True
+config.train_duplicate = 3 # Duplicate train items so less validation
 
 # misc
 config.lrfinder = 0 # Run learning rate finder
