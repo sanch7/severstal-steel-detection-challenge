@@ -29,7 +29,8 @@ TRAIN_IMAGES_PATH = './data/train_images'
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run2"
+config.exp_name = "run3"
+config.metric_name = "dice"
 config.gpu = None
 config.fp16 = True
 
@@ -40,7 +41,7 @@ config.imsize = 256
 config.num_workers = 0
 
 # architecture details
-config.model_save_path = lambda : './model_weights/{}/best_dice.pth'.format(config.exp_name)
+config.model_save_path = lambda : './model_weights/{}/best_{}.pth'.format(config.exp_name, config.metric_name)
 config.model_name = "UnetMxResnet"
 config.unet_encoder = "mxresnet18"
 config.num_classes = 4
@@ -52,8 +53,8 @@ config.unet_last_cross = True
 config.unet_bottle = False
 
 #inference details
-config.best_threshold = 0.5
-config.min_size = 3500
+config.best_threshold = 0.
+config.min_size = 1500
 
 
 class Mish(nn.Module):
