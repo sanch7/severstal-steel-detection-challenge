@@ -5,10 +5,10 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run3"
+config.exp_name = "run4"
 config.tboard = True
 config.preload_data = True
-config.desc = "Oversampling, one cycle scheduler"
+config.desc = "run 1 with DynamicMUnet"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
@@ -28,7 +28,7 @@ config.one_hot_labels = True
 config.num_workers = os.cpu_count()
 
 # archetecture details
-config.model_name = "UnetMxResnet"
+config.model_name = "MUnetMxResnet"
 config.unet_encoder = "mxresnet18"
 config.num_classes = 4
 config.unet_blur = False
@@ -51,7 +51,7 @@ config.eps = 1e-6
 config.mixup = 0.
 config.sched_type = "one_cycle" # LR schedule type
 config.ann_start = -1.0 # Annealing start
-config.oversample = True
+config.oversample = False
 config.train_duplicate = 3 # Duplicate train items so less validation
 
 # misc

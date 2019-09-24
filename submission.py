@@ -30,7 +30,7 @@ config = EasyDict()
 
 # experiment details
 config.exp_name = "run3"
-config.metric_name = "dice"
+config.metric_name = "losss"
 config.gpu = None
 config.fp16 = True
 
