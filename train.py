@@ -102,14 +102,20 @@ def train(config):
     if not os.path.exists(ckpt_dir):
         os.mkdir(ckpt_dir)
 
+    callback_fns=[WandbCallback] if config.wandb else []
+
     learn = (Learner(data, net, wd=config.weight_decay, opt_func=opt_func,
              metrics=[accuracy,dice],
              bn_wd=False, true_wd=True,
              loss_func = loss_func,
              # loss_func = LabelSmoothingCrossEntropy(),
-             callback_fns=[log_cb, WandbCallback],
+             callback_fns=callback_fns,
              model_dir=ckpt_dir)
             )
+
+    if config.wandb:
+        wandb.init(project="Severstal Steel Defect", name=config.exp_name, config=config,
+                    notes=config.desc)
 
     print("Learn path: ", learn.path)
     n = len(learn.data.train_dl)
@@ -141,9 +147,6 @@ def train(config):
     return learn.recorder.metrics[-1][0]
 
 def main():
-    wandb.init(project="Severstal Steel Defect", name=config.exp_name, config=config,
-        notes=config.desc)
-
     run = 1
     acc = np.array([train(config) for i in range(run)])
 

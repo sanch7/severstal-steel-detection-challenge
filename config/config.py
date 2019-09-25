@@ -5,15 +5,16 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run4"
+config.exp_name = "run5"
 config.tboard = True
 config.preload_data = True
-config.desc = "run 1 with DynamicMUnet"
+config.desc = "run 1 with 4 class Focal Loss"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
 config.debug_run = False
 config.random_seed = 42
+config.wandb = True
 
 # model framework
 config.batch_size = 36
@@ -28,7 +29,7 @@ config.one_hot_labels = True
 config.num_workers = os.cpu_count()
 
 # archetecture details
-config.model_name = "MUnetMxResnet"
+config.model_name = "UnetMxResnet"
 config.unet_encoder = "mxresnet18"
 config.num_classes = 4
 config.unet_blur = False
