@@ -24,7 +24,7 @@ from utils.wandbcallback import WandbCallback
 from functools import partial
 
 from models import model_list
-from modules.losses import FocalLoss
+from modules.losses import SteelLoss
 from modules.metrics import accuracy, dice
 from utils.databunch import get_data_bunch
 from utils.callbacks import SaveBestModel
@@ -96,8 +96,8 @@ def train(config):
         y_range=config.unet_y_range, last_cross=config.unet_last_cross, bottle=config.unet_bottle)
     
     log_cb = partial(CSVLogger,filename=config.log_file)
-    
-    loss_func = FocalLoss(alpha=config.focal_alpha, gamma=config.focal_gamma)
+
+    loss_func = SteelLoss(loss_dict=config.loss_dict)
 
     ckpt_dir = "./model_weights/{}/".format(config.exp_name)
     if not os.path.exists(ckpt_dir):

@@ -5,10 +5,10 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run5"
+config.exp_name = "run6"
 config.tboard = True
 config.preload_data = True
-config.desc = "run 1 with 4 class Focal Loss"
+config.desc = "3 combination loss"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
@@ -40,9 +40,8 @@ config.unet_last_cross = True
 config.unet_bottle = False
 
 # training details
-config.loss = "focal"
-config.focal_alpha = 0.8
-config.focal_gamma = 2
+config.loss_dict = {"FocalLoss": {'weight': 0.4, 'alpha': 0.8, 'gamma': 2},
+				"TverskyLoss": {'weight': 0.2}, "DiceBCELoss": {'weight': 0.4}}
 config.optimizer = "ranger"
 config.lr = 1e-3
 config.weight_decay = 1e-2
