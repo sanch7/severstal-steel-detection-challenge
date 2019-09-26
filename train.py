@@ -18,7 +18,8 @@ from fastai.distributed import *
 from fastprogress import fastprogress
 from torchvision.models import *
 import wandb
-from wandb.fastai import WandbCallback
+# from wandb.fastai import WandbCallback
+from utils.wandbcallback import WandbCallback
 
 from functools import partial
 
