@@ -5,10 +5,10 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run9"
+config.exp_name = "run10"
 config.tboard = True
 config.preload_data = True
-config.desc = "3 combination loss, mxresnet34, with unet blur, no sa"
+config.desc = "3 combination loss, mxresnet34, with unet blur, no sa, flat and anneal"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
@@ -17,11 +17,11 @@ config.random_seed = 42
 config.wandb = True
 
 # model framework
-config.batch_size = 36
+config.batch_size = 32
 username = getpass.getuser()
 if username == 'litemax2':
 	config.batch_size = 28
-config.epochs = 32
+config.epochs = 64
 config.imsize = 256
 config.load_valid_crops = True
 config.load_train_crops = False
@@ -43,14 +43,14 @@ config.unet_bottle = False
 config.loss_dict = {"FocalLoss": {'weight': 0.4, 'alpha': 0.8, 'gamma': 2},
 				"TverskyLoss": {'weight': 0.2}, "DiceBCELoss": {'weight': 0.4}}
 config.optimizer = "ranger"
-config.lr = 1e-3
+config.lr = 1e-2
 config.weight_decay = 1e-2
 config.alpha = 0.99
 config.mom = 0.9 # Momentum
 config.eps = 1e-6
 config.mixup = 0.
-config.sched_type = "one_cycle" # LR schedule type
-config.ann_start = -1.0 # Annealing start
+config.sched_type = "flat_and_anneal" # LR schedule type
+config.ann_start = 5 # Annealing start
 config.oversample = False
 config.train_duplicate = 3 # Duplicate train items so less validation
 
