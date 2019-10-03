@@ -57,7 +57,7 @@ def fit_with_annealing(learn:Learner, num_epoch:int, lr:float=defaults.lr, annea
     learn.callbacks.append(sched)
     learn.fit(num_epoch, callbacks=callbacks)
 
-def train(config):
+def train(config, get_learn=False):
 
     bs_one_gpu = config.batch_size
     gpu = setup_distrib(config.gpu)
@@ -103,7 +103,7 @@ def train(config):
     if not os.path.exists(ckpt_dir):
         os.mkdir(ckpt_dir)
 
-    callback_fns=[WandbCallback] if config.wandb else []
+    callback_fns=[WandbCallback] if (config.wandb and not get_learn) else []
 
     learn = (Learner(data, net, wd=config.weight_decay, opt_func=opt_func,
              metrics=[accuracy,dice],
@@ -114,7 +114,7 @@ def train(config):
              model_dir=ckpt_dir)
             )
 
-    if config.wandb:
+    if config.wandb and not get_learn:
         wandb.init(project="Severstal Steel Defect", name=config.exp_name, config=config,
                     notes=config.desc)
 
@@ -128,20 +128,23 @@ def train(config):
     if config.fp16: learn = learn.to_fp16(dynamic=True)
     if gpu is None:       learn.to_parallel()
     elif num_distrib()>1: learn.to_distributed(gpu) # Requires `-m fastai.launch`
+
+    if get_learn:
+        return learn
     
     if config.lrfinder:
         # run learning rate finder
-        IN_NOTEBOOK = 1
         learn.lr_find(wd=config.weight_decay)
         learn.recorder.plot()
-    else:
-        best_save_cb = SaveBestModel(learn, ckpt_name='best_dice')
-        if config.sched_type == 'one_cycle': 
-            learn.fit_one_cycle(config.epochs, config.lr, div_factor=10, pct_start=0.3,
-                    callbacks=[best_save_cb])
-        elif config.sched_type == 'flat_and_anneal': 
-            fit_with_annealing(learn, config.epochs, config.lr, config.ann_start,
-                    callbacks=[best_save_cb])
+        config.lr = float(input())
+
+    best_save_cb = SaveBestModel(learn, ckpt_name='best_dice')
+    if config.sched_type == 'one_cycle': 
+        learn.fit_one_cycle(config.epochs, config.lr, div_factor=10, pct_start=0.3,
+                callbacks=[best_save_cb])
+    elif config.sched_type == 'flat_and_anneal': 
+        fit_with_annealing(learn, config.epochs, config.lr, config.ann_start,
+                callbacks=[best_save_cb])
     
     learn.save('basic_model')
 

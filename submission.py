@@ -29,8 +29,8 @@ TRAIN_IMAGES_PATH = './data/train_images'
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run3"
-config.metric_name = "losss"
+config.exp_name = "run6"
+config.metric_name = "loss"
 config.gpu = None
 config.fp16 = True
 
@@ -53,8 +53,8 @@ config.unet_last_cross = True
 config.unet_bottle = False
 
 #inference details
-config.best_threshold = 0.
-config.min_size = 1500
+config.best_threshold = 0.5
+config.min_size = 3500
 
 
 class Mish(nn.Module):
@@ -335,7 +335,7 @@ if __name__ == '__main__':
     loaders = [get_dataloader(data_df=subm_df, image_position=pos) for pos in range(7)]
 
     subm_idx = 0
-    for batches in tqdm(zip(*loaders)):
+    for batches in tqdm(zip(*loaders), total=len(loaders[1])):
         preds = [net(b[0].cuda().half()) for b in batches]
         fpreds = stitch_preds(preds)
 
