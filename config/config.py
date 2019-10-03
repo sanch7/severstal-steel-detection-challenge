@@ -5,10 +5,10 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run8"
+config.exp_name = "run9"
 config.tboard = True
 config.preload_data = True
-config.desc = "3 combination loss, mxresnet14, unet sa, lr=0.5 with unet blur and bottle"
+config.desc = "3 combination loss, mxresnet34, with unet blur, no sa"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
@@ -34,16 +34,16 @@ config.unet_encoder = "mxresnet34"
 config.num_classes = 4
 config.unet_blur = True
 config.unet_blur_final = True
-config.unet_self_attention = True
+config.unet_self_attention = False
 config.unet_y_range = None
 config.unet_last_cross = True
-config.unet_bottle = True
+config.unet_bottle = False
 
 # training details
 config.loss_dict = {"FocalLoss": {'weight': 0.4, 'alpha': 0.8, 'gamma': 2},
 				"TverskyLoss": {'weight': 0.2}, "DiceBCELoss": {'weight': 0.4}}
 config.optimizer = "ranger"
-config.lr = 5e-1
+config.lr = 1e-3
 config.weight_decay = 1e-2
 config.alpha = 0.99
 config.mom = 0.9 # Momentum
