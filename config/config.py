@@ -5,10 +5,10 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run7"
+config.exp_name = "run8"
 config.tboard = True
 config.preload_data = True
-config.desc = "3 combination loss, mxresnet14, unet sa, lr=0.5"
+config.desc = "3 combination loss, mxresnet14, unet sa, lr=0.5 with unet blur and bottle"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
@@ -21,7 +21,7 @@ config.batch_size = 36
 username = getpass.getuser()
 if username == 'litemax2':
 	config.batch_size = 28
-config.epochs = 64
+config.epochs = 32
 config.imsize = 256
 config.load_valid_crops = True
 config.load_train_crops = False
@@ -32,12 +32,12 @@ config.num_workers = os.cpu_count()
 config.model_name = "UnetMxResnet"
 config.unet_encoder = "mxresnet34"
 config.num_classes = 4
-config.unet_blur = False
+config.unet_blur = True
 config.unet_blur_final = True
 config.unet_self_attention = True
 config.unet_y_range = None
 config.unet_last_cross = True
-config.unet_bottle = False
+config.unet_bottle = True
 
 # training details
 config.loss_dict = {"FocalLoss": {'weight': 0.4, 'alpha': 0.8, 'gamma': 2},
