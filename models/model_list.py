@@ -2,7 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fastai.vision.models import DynamicUnet
+from torchvision.models.resnet import *
 from fastai.vision.models.xresnet import *
+from models.presnet import *
 #from fastai.vision.models.xresnet2 import *
 #from fastai.vision.models.presnet import *
 #from x2resnet import *
@@ -16,7 +18,7 @@ def UnetMxResnet(encoder='mxresnet18', n_classes=5, img_size=(256, 256),
     Net = globals()[encoder]()
     if encoder in ['mxresnet18', 'mxresnet34', 'mxresnet50', 'mxresnet101', 'mxresnet152']:
         NetBase = nn.Sequential(*[i for i in Net.children()][:-3])
-    elif encoder in ['mres2net34', 'mres2net50']:
+    elif encoder in ['mres2net34', 'mres2net50', 'presnet18', 'presnet34', 'presnet50', 'resnet18', 'resnet34']:
         NetBase = nn.Sequential(*[i for i in Net.children()][:-2])
     else:
         raise NotImplementedError

@@ -5,10 +5,10 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run11"
+config.exp_name = "run12"
 config.tboard = True
 config.preload_data = True
-config.desc = "run 6 with mxresnet34"
+config.desc = "run 6 with presnet34"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
@@ -20,7 +20,7 @@ config.wandb = True
 config.batch_size = 32
 username = getpass.getuser()
 if username == 'litemax2':
-	config.batch_size = 28
+	config.batch_size = 24
 config.epochs = 64
 config.imsize = 256
 config.load_valid_crops = True
@@ -30,7 +30,7 @@ config.num_workers = os.cpu_count()
 
 # archetecture details
 config.model_name = "UnetMxResnet"
-config.unet_encoder = "mxresnet34"
+config.unet_encoder = "presnet34"
 config.num_classes = 4
 config.unet_blur = False
 config.unet_blur_final = True

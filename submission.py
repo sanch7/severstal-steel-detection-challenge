@@ -30,7 +30,7 @@ TRAIN_IMAGES_PATH = './data/train_images'
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run10"
+config.exp_name = "run11"
 config.metric_name = "loss"
 config.gpu = None
 config.fp16 = True
