@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from modules.bi_tempered_loss import bi_tempered_logistic_loss
 
 class SteelLoss(nn.Module):
     def __init__(self, loss_dict):
@@ -9,19 +9,29 @@ class SteelLoss(nn.Module):
 
         assert len(loss_dict) > 0
         self.lweights = []
+        self.mag_scale = []
         for k,v in loss_dict.items():
             assert 'weight' in v
+            assert 'mag_scale' in v
             self.lweights.append(v['weight'])
+            self.mag_scale.append(v['mag_scale'])
             del v['weight']
+            del v['mag_scale']
         self.lweights = torch.tensor(self.lweights).cuda()
+        self.mag_scale = torch.tensor(self.mag_scale).cuda()
+        assert self.lweights.sum() == 1
 
         self.loss_dict = loss_dict
         self.losses = [globals()[k](**v) for k,v in self.loss_dict.items()]
 
     def forward(self, inputs, targets):
-        loss = self.losses[0](inputs, targets)
+        loss = self.losses[0](inputs, targets)*self.mag_scale[0]
+        # print("l0:", loss)
         for i in range(1, len(self.losses)):
-            loss += self.losses[i](inputs, targets)
+            l_i = self.losses[i](inputs, targets)*self.mag_scale[i]
+            # print("l{}:".format(i), l_i)
+            loss += l_i
+        # print("Weights: ", self.lweights)
         loss = (loss*self.lweights).sum()
         return loss
 
@@ -141,3 +151,27 @@ class TverskyLoss(nn.Module):
 
         return 1 - Tversky
 
+
+class BiTemperedLoss(nn.Module):
+    def __init__(self, t1=0.8, t2=1.3, label_smoothing=0.2, num_iters=5):
+        super(BiTemperedLoss, self).__init__()
+        self.t1 = t1
+        self.t2 = t2
+        self.label_smoothing = label_smoothing
+        self.num_iters = num_iters
+
+    def forward(self, inputs, targets):
+        
+        #comment out if your model contains a sigmoid or equivalent activation layer
+        inputs = F.sigmoid(inputs)
+
+        #flatten label and prediction tensors
+        inputs = inputs.permute(1,0,2,3).reshape(4, -1)
+        targets = targets.permute(1,0,2,3).reshape(4, -1)
+
+        #first compute binary cross-entropy 
+        btl_loss = bi_tempered_logistic_loss(inputs, targets, self.t1, self.t2,
+                    self.label_smoothing, self.num_iters)
+        btl_loss = torch.mean(btl_loss)
+
+        return btl_loss

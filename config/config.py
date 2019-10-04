@@ -5,10 +5,10 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run12"
+config.exp_name = "run13"
 config.tboard = True
 config.preload_data = True
-config.desc = "run 6 with presnet34"
+config.desc = "run 6 with bi tempered loss"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
@@ -30,7 +30,7 @@ config.num_workers = os.cpu_count()
 
 # archetecture details
 config.model_name = "UnetMxResnet"
-config.unet_encoder = "presnet34"
+config.unet_encoder = "mxresnet34"
 config.num_classes = 4
 config.unet_blur = False
 config.unet_blur_final = True
@@ -40,8 +40,9 @@ config.unet_last_cross = True
 config.unet_bottle = False
 
 # training details
-config.loss_dict = {"FocalLoss": {'weight': 0.4, 'alpha': 0.8, 'gamma': 2},
-				"TverskyLoss": {'weight': 0.2}, "DiceBCELoss": {'weight': 0.4}}
+config.loss_dict = {"FocalLoss": {'weight': 0.3, 'mag_scale': 6.0, 'alpha': 0.8, 'gamma': 2},
+				"TverskyLoss": {'weight': 0.15, 'mag_scale': 1.0}, "DiceBCELoss": {'weight': 0.35, 'mag_scale': 0.6},
+				"BiTemperedLoss": {'weight': 0.2, 'mag_scale': 50.0, 't1': 0.8, 't2': 1.3, 'label_smoothing': 0.2}}
 config.optimizer = "ranger"
 config.lr = 1e-3
 config.weight_decay = 1e-2
