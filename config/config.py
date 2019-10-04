@@ -5,14 +5,14 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run10"
+config.exp_name = "run11"
 config.tboard = True
 config.preload_data = True
-config.desc = "3 combination loss, mxresnet34, with unet blur, no sa, flat and anneal"
+config.desc = "run 6 with mxresnet34"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
-config.debug_run = True
+config.debug_run = False
 config.random_seed = 42
 config.wandb = True
 
@@ -32,7 +32,7 @@ config.num_workers = os.cpu_count()
 config.model_name = "UnetMxResnet"
 config.unet_encoder = "mxresnet34"
 config.num_classes = 4
-config.unet_blur = True
+config.unet_blur = False
 config.unet_blur_final = True
 config.unet_self_attention = False
 config.unet_y_range = None
@@ -43,14 +43,14 @@ config.unet_bottle = False
 config.loss_dict = {"FocalLoss": {'weight': 0.4, 'alpha': 0.8, 'gamma': 2},
 				"TverskyLoss": {'weight': 0.2}, "DiceBCELoss": {'weight': 0.4}}
 config.optimizer = "ranger"
-config.lr = 1e-2
+config.lr = 1e-3
 config.weight_decay = 1e-2
 config.alpha = 0.99
 config.mom = 0.9 # Momentum
 config.eps = 1e-6
 config.mixup = 0.
-config.sched_type = "flat_and_anneal" # LR schedule type
-config.ann_start = 5 # Annealing start
+config.sched_type = "one_cycle" # LR schedule type
+config.ann_start = -1.0 # Annealing start
 config.oversample = False
 config.train_duplicate = 3 # Duplicate train items so less validation
 
