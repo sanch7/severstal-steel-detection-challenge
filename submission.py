@@ -15,6 +15,7 @@ import cv2
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.backends.cudnn as cudnn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
@@ -29,13 +30,13 @@ TRAIN_IMAGES_PATH = './data/train_images'
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run6"
+config.exp_name = "run9"
 config.metric_name = "loss"
 config.gpu = None
 config.fp16 = True
 
 # model framework
-config.batch_size = 1
+config.batch_size = 32
 config.imsize = 256
 # config.num_workers = os.cpu_count()
 config.num_workers = 0
@@ -43,9 +44,9 @@ config.num_workers = 0
 # architecture details
 config.model_save_path = lambda : './model_weights/{}/best_{}.pth'.format(config.exp_name, config.metric_name)
 config.model_name = "UnetMxResnet"
-config.unet_encoder = "mxresnet18"
+config.unet_encoder = "mxresnet34"
 config.num_classes = 4
-config.unet_blur = False
+config.unet_blur = True
 config.unet_blur_final = True
 config.unet_self_attention = False
 config.unet_y_range = None
@@ -56,6 +57,8 @@ config.unet_bottle = False
 config.best_threshold = 0.5
 config.min_size = 3500
 
+cudnn.benchmark = True
+cudnn.enabled = True
 
 class Mish(nn.Module):
     def __init__(self):
@@ -241,7 +244,7 @@ class SteelEvalDataSet(Dataset):
         if self.transform:
             img = self.transform(img)
 
-        return img, self.imlist[index]
+        return img.half(), self.imlist[index]
 
 
 def get_dataloader(data_df, test=True, image_position=0, flip_p=0):
@@ -335,13 +338,16 @@ if __name__ == '__main__':
     loaders = [get_dataloader(data_df=subm_df, image_position=pos) for pos in range(7)]
 
     subm_idx = 0
-    for batches in tqdm(zip(*loaders), total=len(loaders[1])):
-        preds = [net(b[0].cuda().half()) for b in batches]
-        fpreds = stitch_preds(preds)
+    with torch.no_grad():
+        for batches in tqdm(zip(*loaders), total=len(loaders[1])):
+            preds = [net(b[0].cuda()) for b in batches]
+            fpreds = stitch_preds(preds)
 
-        for def_idx in range(4):
-            pred, num = post_process(fpreds[0,def_idx,:,:].detach().cpu().float().numpy(), config.best_threshold, config.min_size)
-            rle = mask2rle(pred)
-            subm_df.loc[subm_idx, 'EncodedPixels'] = rle
-            subm_idx+=1
+            for img in range(fpreds.shape[0]):
+                for def_idx in range(4):
+                    pred, num = post_process(fpreds[img,def_idx,:,:].detach().cpu().float().numpy(), config.best_threshold, config.min_size)
+                    rle = mask2rle(pred)
+                    subm_df.loc[subm_idx, 'EncodedPixels'] = rle
+                    subm_idx+=1
+    print(subm_idx)
     subm_df.to_csv('./subm/submission.csv', index=False)

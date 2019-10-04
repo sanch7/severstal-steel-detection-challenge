@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from fastai.vision.models import DynamicUnet
-#from fastai.vision.models.xresnet import *
+from fastai.vision.models.xresnet import *
 #from fastai.vision.models.xresnet2 import *
 #from fastai.vision.models.presnet import *
 #from x2resnet import *

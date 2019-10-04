@@ -12,7 +12,7 @@ config.desc = "3 combination loss, mxresnet34, with unet blur, no sa, flat and a
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
-config.debug_run = False
+config.debug_run = True
 config.random_seed = 42
 config.wandb = True
 
