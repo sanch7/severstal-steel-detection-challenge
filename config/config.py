@@ -5,10 +5,10 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run13"
+config.exp_name = "run14"
 config.tboard = True
 config.preload_data = True
-config.desc = "run 6 with bi tempered loss"
+config.desc = "deeplab xception"
 config.split_csv = "./data/split.csv"
 config.gpu = None
 config.fp16 = True
@@ -20,7 +20,7 @@ config.wandb = True
 config.batch_size = 32
 username = getpass.getuser()
 if username == 'litemax2':
-	config.batch_size = 24
+	config.batch_size = 16
 config.epochs = 64
 config.imsize = 256
 config.load_valid_crops = True
@@ -29,7 +29,7 @@ config.one_hot_labels = True
 config.num_workers = os.cpu_count()
 
 # archetecture details
-config.model_name = "UnetMxResnet"
+config.model_name = "deeplab"
 config.unet_encoder = "mxresnet34"
 config.num_classes = 4
 config.unet_blur = False
@@ -39,10 +39,14 @@ config.unet_y_range = None
 config.unet_last_cross = True
 config.unet_bottle = False
 
+config.deeplab_backbone='xception'
+config.deeplab_sync_bn = True
+config.deeplab_freeze_bn = False
+
 # training details
-config.loss_dict = {"FocalLoss": {'weight': 0.3, 'mag_scale': 6.0, 'alpha': 0.8, 'gamma': 2},
-				"TverskyLoss": {'weight': 0.15, 'mag_scale': 1.0}, "DiceBCELoss": {'weight': 0.35, 'mag_scale': 0.6},
-				"BiTemperedLoss": {'weight': 0.2, 'mag_scale': 50.0, 't1': 0.8, 't2': 1.3, 'label_smoothing': 0.2}}
+config.loss_dict = {"FocalLoss": {'weight': 0.3, 'mag_scale': 1.0, 'alpha': 0.8, 'gamma': 2},
+				"TverskyLoss": {'weight': 0.15, 'mag_scale': 1.0}, "DiceBCELoss": {'weight': 0.35, 'mag_scale': 1.0},
+				"BiTemperedLoss": {'weight': 0.2, 'mag_scale': 20.0, 't1': 0.8, 't2': 1.3, 'label_smoothing': 0.2}}
 config.optimizer = "ranger"
 config.lr = 1e-3
 config.weight_decay = 1e-2

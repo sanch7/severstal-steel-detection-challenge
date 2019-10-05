@@ -91,9 +91,7 @@ def train(config, get_learn=False):
     config.lr *= bs_rat
 
     Net = getattr(model_list, config.model_name)
-    net = Net(encoder=config.unet_encoder, n_classes=config.num_classes, img_size=(config.imsize, config.imsize),
-        blur=config.unet_blur, blur_final=config.unet_blur_final, self_attention=config.unet_self_attention,
-        y_range=config.unet_y_range, last_cross=config.unet_last_cross, bottle=config.unet_bottle)
+    net = Net(config=config)
     
     log_cb = partial(CSVLogger,filename=config.log_file)
 
