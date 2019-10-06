@@ -44,7 +44,6 @@ class SegmentationItemListOneHot(SegmentationItemList):
 
 def get_steel_transforms(config):
     use_on_y = config.exp_type == 'segmenter'
-    print("use_on_y: ", use_on_y)
 
     train_tfms = [
                   # # crop_pad only center cropping for some reason
@@ -168,10 +167,6 @@ def segmenter_data_bunch(config):
     src = (item_list.from_folder('.')
             .split_by_list(train=train, valid=valid)
             .label_from_lists(train_labels=train_label_paths, valid_labels=valid_label_paths, classes=[1, 2, 3, 4]))
-
-    src = (item_list.from_folder('.')
-            .split_by_list(train=train, valid=valid)
-            .label_from_lists(train_labels=train_label_paths, valid_labels=valid_label_paths))
 
     data = (src.transform(get_steel_transforms(config=config), size=config.imsize, tfm_y=True)
             .databunch(bs=config.batch_size)

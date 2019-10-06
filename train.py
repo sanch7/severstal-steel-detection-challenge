@@ -7,6 +7,7 @@
 
 import os, sys
 import glob
+from shutil import copyfile
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -45,6 +46,9 @@ fastprogress.MAX_COLS = 80
 
 from config.config import config
 
+if not os.path.exists('./config/old_configs/{}'.format(config.exp_name)):
+    os.makedirs('./config/old_configs/{}'.format(config.exp_name))
+copyfile('./config/config.py', './config/old_configs/{}/config.py'.format(config.exp_name))
 
 def fit_with_annealing(learn:Learner, num_epoch:int, lr:float=defaults.lr, annealing_start:float=0.7,
                     callbacks:list=None)->None:

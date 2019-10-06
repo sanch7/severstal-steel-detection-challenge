@@ -30,7 +30,7 @@ TRAIN_IMAGES_PATH = './data/train_images'
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run11"
+config.exp_name = "run14"
 config.metric_name = "loss"
 config.gpu = None
 config.fp16 = True
@@ -43,7 +43,7 @@ config.num_workers = 0
 
 # architecture details
 config.model_save_path = lambda : './model_weights/{}/best_{}.pth'.format(config.exp_name, config.metric_name)
-config.model_name = "UnetMxResnet"
+config.model_name = "deeplab"
 config.unet_encoder = "mxresnet34"
 config.num_classes = 4
 config.unet_blur = True
@@ -52,6 +52,10 @@ config.unet_self_attention = False
 config.unet_y_range = None
 config.unet_last_cross = True
 config.unet_bottle = False
+
+config.deeplab_backbone='xception'
+config.deeplab_sync_bn = True
+config.deeplab_freeze_bn = False
 
 #inference details
 config.best_threshold = 0.5
@@ -321,7 +325,13 @@ def mask2rle(img):
 
 
 if __name__ == '__main__':
-    net = UnetMxResnet(encoder=config.unet_encoder, n_classes=config.num_classes,
+    jit_path = config.model_save_path().replace('.pth', '_jit.pth')
+    if os.path.exists(jit_path):
+        print("Loading jit model")
+        net = torch.jit.load(jit_path)
+    else:
+        print("Loading defined model")
+        net = UnetMxResnet(encoder=config.unet_encoder, n_classes=config.num_classes,
                        img_size=(config.imsize, config.imsize),
                        blur=config.unet_blur, blur_final=config.unet_blur_final,
                        self_attention=config.unet_self_attention,
