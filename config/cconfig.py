@@ -5,12 +5,12 @@ import getpass
 config = EasyDict()
 
 # experiment details
-config.exp_name = "run14"
-config.exp_type = "segmenter"
+config.exp_name = "crun2"
+config.exp_type = "classifier"
 config.tboard = True
 config.preload_data = True
-config.desc = "deeplab xception"
-config.split_csv = "./data/split.csv"
+config.desc = "xception dataloading train with train and valid full images"
+config.split_csv = "./data/splitc.csv"
 config.gpu = None
 config.fp16 = True
 config.debug_run = False
@@ -18,31 +18,21 @@ config.random_seed = 42
 config.wandb = True
 
 # model framework
-config.batch_size = 32
+config.batch_size = 16
 username = getpass.getuser()
 if username == 'litemax2':
 	config.batch_size = 16
 config.epochs = 64
-config.imsize = 256
-config.load_valid_crops = True
+config.imsize = (256, 1600)
+config.load_valid_crops = False
 config.load_train_crops = False
+config.classwise_labels = False
 config.one_hot_labels = True
 config.num_workers = os.cpu_count()
 
 # archetecture details
-config.model_name = "deeplab"
-config.unet_encoder = "mxresnet34"
-config.num_classes = 4
-config.unet_blur = False
-config.unet_blur_final = True
-config.unet_self_attention = False
-config.unet_y_range = None
-config.unet_last_cross = True
-config.unet_bottle = False
-
-config.deeplab_backbone='xception'
-config.deeplab_sync_bn = True
-config.deeplab_freeze_bn = False
+config.model_name = "xception"
+config.num_classes = 5 if config.classwise_labels else 2
 
 # training details
 config.loss_dict = {"FocalLoss": {'weight': 0.3, 'mag_scale': 1.0, 'alpha': 0.8, 'gamma': 2},
@@ -67,3 +57,6 @@ config.log_file = "./logs/{}".format(config.exp_name) # Log file name
 
 if config.debug_run:
 	config.wandb = False
+if config.exp_type == 'classifier':
+	for k, v in config.loss_dict.items():
+		v['classification'] = True

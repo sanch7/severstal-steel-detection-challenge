@@ -1,4 +1,15 @@
-from fastai.vision import *
+import numpy as np
+import pandas as pd
+import cv2
+import torch
+from torch.utils.data import Dataset, DataLoader
+from fastai.vision import (Tensor, TensorImage, Path, open_mask, ImageSegment,
+ SegmentationLabelList, SegmentationItemList, RandTransform, TfmPixel, TfmCoord,
+ TfmAffine, TfmLighting, crop, flip_lr, symmetric_warp, rotate, zoom, brightness,
+ contrast, imagenet_stats, CategoryList, ImageList)
+from fastai.basic_data import DataBunch
+from utils.preprocessing import alb_transform_train, alb_transform_test
+
 
 def plot_one_hot_ds(ds, idx=0, def_type=1):
     for i, bt in enumerate(iter(ds)):
@@ -32,6 +43,9 @@ class SegmentationItemListOneHot(SegmentationItemList):
     _label_cls = SegmentationLabelListOneHot
 
 def get_steel_transforms(config):
+    use_on_y = config.exp_type == 'segmenter'
+    print("use_on_y: ", use_on_y)
+
     train_tfms = [
                   # # crop_pad only center cropping for some reason
                   # RandTransform(tfm=TfmCrop (crop_pad), 
@@ -112,7 +126,10 @@ def oversample_train(split_df, random_seed=42):
     return split_df
 
 
-def get_data_bunch(split_df, config):
+def segmenter_data_bunch(config):
+    split_df = pd.read_csv(config.split_csv)
+    if config.debug_run: split_df = split_df.loc[:200]
+
     train_data_paths, valid_data_paths, train_label_paths, valid_label_paths = [], [], [], []
 
     if config.oversample:
@@ -142,17 +159,68 @@ def get_data_bunch(split_df, config):
                 train_data_paths.append(Path(data_path))
                 train_label_paths.append(Path(label_path))
 
-    seg_item_list = SegmentationItemListOneHot if config.one_hot_labels else SegmentationItemList 
-    train = seg_item_list(train_data_paths)
-    valid = seg_item_list(valid_data_paths)
+    item_list = SegmentationItemListOneHot if config.one_hot_labels else SegmentationItemList 
+
+    train = item_list(train_data_paths)
+    valid = item_list(valid_data_paths)
     # train_label = SegmentationLabelList(train_label_paths)
     # valid_label = SegmentationLabelList(valid_label_paths)
-    src = (seg_item_list.from_folder('.')
+    src = (item_list.from_folder('.')
             .split_by_list(train=train, valid=valid)
             .label_from_lists(train_labels=train_label_paths, valid_labels=valid_label_paths, classes=[1, 2, 3, 4]))
+
+    src = (item_list.from_folder('.')
+            .split_by_list(train=train, valid=valid)
+            .label_from_lists(train_labels=train_label_paths, valid_labels=valid_label_paths))
 
     data = (src.transform(get_steel_transforms(config=config), size=config.imsize, tfm_y=True)
             .databunch(bs=config.batch_size)
             .normalize(imagenet_stats))
 
+    return data
+
+
+class SteelClassifierDataset(Dataset):
+    def __init__(self, data_df, transforms=None):
+        super(SteelClassifierDataset, self).__init__()
+        self.data_df = data_df
+        self.transforms = transforms
+    
+    def __len__(self):
+        return len(self.data_df)
+
+    def __getitem__(self, i):
+        img_path = './data/train_images/' + self.data_df.loc[i, 'ImageId_ClassId']
+        image = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+        if self.transforms is not None:
+            image = self.transforms(image=image)['image']
+
+        label = torch.tensor([0, 0]).float()
+        label[(self.data_df.loc[i, ['1', '2', '3', '4']].sum()>0)*1] = 1
+        image = torch.from_numpy(image).permute(-1, 0, 1).float()
+        return image, label
+
+def classifier_data_bunch(config):
+    split_df = pd.read_csv(config.split_csv)
+    if config.debug_run: split_df = split_df.loc[:200]
+    train_df = split_df[split_df['is_valid']==False].reset_index(drop=True)
+    valid_df = split_df[split_df['is_valid']==True].reset_index(drop=True)
+
+    if config.load_valid_crops:
+        valid_df_crops = []
+        for i in range(len(valid_df)):
+            for j in range(1, 8):
+                crop_id = valid_df.loc[i, 'ImageId_ClassId'].replace('.jpg', '_c{}.jpg'.format(j))
+                valid_df_crops.append({'ImageId_ClassId': crop_id, '1': valid_df.loc[i, '1'],
+                                     '2': valid_df.loc[i, '2'], '3': valid_df.loc[i, '3'], 
+                                     '4': valid_df.loc[i, '4'], 'is_valid': valid_df.loc[i, 'is_valid']})
+        valid_df = pd.DataFrame(valid_df_crops)
+
+    train_tf = alb_transform_train(config.imsize)
+    valid_tf = alb_transform_test(config.imsize)
+
+    train_ds = SteelClassifierDataset(train_df, transforms=train_tf)
+    valid_ds = SteelClassifierDataset(valid_df, transforms=valid_tf)
+    data = DataBunch.create(train_ds, valid_ds, bs=config.batch_size,
+                            num_workers=config.num_workers)
     return data

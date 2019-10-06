@@ -9,6 +9,10 @@ def accuracy(input:Tensor, targs:Tensor)->Rank0Tensor:
     # targs = targs.view(n,-1)
     return (input==targs).float().mean()
 
+def classifier_accuracy(input:Tensor, targs:Tensor)->Rank0Tensor:
+    "Computes accuracy with `targs` when `input` is bs * n_classes."
+    return (input.argmax(1)==targs.argmax(1)).float().mean()
+
 def dice(probability, truth, threshold=0.5):
     batch_size = truth.shape[0]
     channel_num = truth.shape[1]

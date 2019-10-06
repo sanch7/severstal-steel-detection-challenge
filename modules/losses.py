@@ -37,8 +37,9 @@ class SteelLoss(nn.Module):
 
 
 class DiceLoss(nn.Module):
-    def __init__(self, weight=None, size_average=True):
+    def __init__(self, weight=None, size_average=True, classification=False):
         super(DiceLoss, self).__init__()
+        self.classification = classification
 
     def forward(self, inputs, targets, smooth=1):
         
@@ -46,8 +47,12 @@ class DiceLoss(nn.Module):
         inputs = F.sigmoid(inputs)       
         
         #flatten label and prediction tensors
-        inputs = inputs.permute(1,0,2,3).reshape(4, -1)
-        targets = targets.permute(1,0,2,3).reshape(4, -1)
+        if self.classification:
+            inputs = inputs.reshape(-1)
+            targets = targets.reshape(-1)
+        else:
+            inputs = inputs.permute(1,0,2,3).reshape(4, -1)
+            targets = targets.permute(1,0,2,3).reshape(4, -1)
         
         intersection = (inputs * targets).sum(1)                            
         dice = (2.*intersection + smooth)/(inputs.sum(1) + targets.sum(1) + smooth)  
@@ -57,10 +62,11 @@ class DiceLoss(nn.Module):
 
 
 class FocalLoss(nn.Module):
-    def __init__(self, alpha=0.8, gamma=2, weight=None, size_average=True):
+    def __init__(self, alpha=0.8, gamma=2, weight=None, size_average=True, classification=False):
         super(FocalLoss, self).__init__()
         self.alpha = alpha
         self.gamma = gamma
+        self.classification = classification
 
     def forward(self, inputs, targets, smooth=1):
         
@@ -68,11 +74,16 @@ class FocalLoss(nn.Module):
         inputs = F.sigmoid(inputs)
 
         #flatten label and prediction tensors
-        inputs = inputs.permute(1,0,2,3).reshape(4, -1)
-        targets = targets.permute(1,0,2,3).reshape(4, -1)
+        if self.classification:
+            inputs = inputs.reshape(-1)
+            targets = targets.reshape(-1)
+            BCE = F.binary_cross_entropy(inputs, targets, reduction='mean')
+        else:
+            inputs = inputs.permute(1,0,2,3).reshape(4, -1)
+            targets = targets.permute(1,0,2,3).reshape(4, -1)
+            BCE = torch.mean(F.binary_cross_entropy(inputs, targets, reduction='none'), dim=1)
 
         #first compute binary cross-entropy 
-        BCE = torch.mean(F.binary_cross_entropy(inputs, targets, reduction='none'), dim=1)
         BCE_EXP = torch.exp(-BCE)
         focal_loss = self.alpha * (1-BCE_EXP)**self.gamma * BCE
         focal_loss = torch.mean(focal_loss)
@@ -81,8 +92,9 @@ class FocalLoss(nn.Module):
 
 
 class DiceBCELoss(nn.Module):
-    def __init__(self, weight=None, size_average=True):
+    def __init__(self, weight=None, size_average=True, classification=False):
         super(DiceBCELoss, self).__init__()
+        self.classification = classification
 
     def forward(self, inputs, targets, smooth=1):
         
@@ -90,8 +102,9 @@ class DiceBCELoss(nn.Module):
         inputs = F.sigmoid(inputs)       
         
         #flatten label and prediction tensors
-        inputs = inputs.permute(1,0,2,3).reshape(4, -1)
-        targets = targets.permute(1,0,2,3).reshape(4, -1)
+        if not self.classification:
+            inputs = inputs.permute(1,0,2,3).reshape(4, -1)
+            targets = targets.permute(1,0,2,3).reshape(4, -1)
         
         intersection = (inputs * targets).sum(1)                            
         dice_loss = 1 - (2.*intersection + smooth)/(inputs.sum(1) + targets.sum(1) + smooth)  
@@ -102,8 +115,9 @@ class DiceBCELoss(nn.Module):
         return Dice_BCE
 
 class IoULoss(nn.Module):
-    def __init__(self, weight=None, size_average=True):
+    def __init__(self, weight=None, size_average=True, classification=False):
         super(IoULoss, self).__init__()
+        self.classification = classification
 
     def forward(self, inputs, targets, smooth=1):
         
@@ -111,8 +125,12 @@ class IoULoss(nn.Module):
         inputs = F.sigmoid(inputs)       
         
         #flatten label and prediction tensors
-        inputs = inputs.permute(1,0,2,3).reshape(4, -1)
-        targets = targets.permute(1,0,2,3).reshape(4, -1)
+        if self.classification:
+            inputs = inputs.reshape(-1)
+            targets = targets.reshape(-1)
+        else:
+            inputs = inputs.permute(1,0,2,3).reshape(4, -1)
+            targets = targets.permute(1,0,2,3).reshape(4, -1)
         
         #intersection is equivalent to True Positive count
         #union is the mutually inclusive area of all labels & predictions 
@@ -127,20 +145,22 @@ class IoULoss(nn.Module):
 
 
 class TverskyLoss(nn.Module):
-    def __init__(self, alpha=0.3, beta=0.7, weight=None, size_average=True):
+    def __init__(self, alpha=0.3, beta=0.7, weight=None, size_average=True, classification=False):
         super(TverskyLoss, self).__init__()
         self.alpha = alpha
         self.beta = beta
+        self.classification = classification
 
     def forward(self, inputs, targets, smooth=1):
-        
+
         #comment out if your model contains a sigmoid or equivalent activation layer
         inputs = F.sigmoid(inputs)       
 
         #flatten label and prediction tensors
-        inputs = inputs.permute(1,0,2,3).reshape(4, -1)
-        targets = targets.permute(1,0,2,3).reshape(4, -1)
-        
+        if not self.classification:
+            inputs = inputs.permute(1,0,2,3).reshape(4, -1)
+            targets = targets.permute(1,0,2,3).reshape(4, -1)
+
         #True Positives, False Positives & False Negatives
         TP = (inputs * targets).sum(1)    
         FP = ((1-targets) * inputs).sum(1)
@@ -153,12 +173,13 @@ class TverskyLoss(nn.Module):
 
 
 class BiTemperedLoss(nn.Module):
-    def __init__(self, t1=0.8, t2=1.3, label_smoothing=0.2, num_iters=5):
+    def __init__(self, t1=0.8, t2=1.3, label_smoothing=0.2, num_iters=5, classification=False):
         super(BiTemperedLoss, self).__init__()
         self.t1 = t1
         self.t2 = t2
         self.label_smoothing = label_smoothing
         self.num_iters = num_iters
+        self.classification = classification
 
     def forward(self, inputs, targets):
         
@@ -166,8 +187,12 @@ class BiTemperedLoss(nn.Module):
         inputs = F.sigmoid(inputs)
 
         #flatten label and prediction tensors
-        inputs = inputs.permute(1,0,2,3).reshape(4, -1)
-        targets = targets.permute(1,0,2,3).reshape(4, -1)
+        if self.classification:
+            inputs = inputs.reshape(-1)
+            targets = targets.reshape(-1)
+        else:
+            inputs = inputs.permute(1,0,2,3).reshape(4, -1)
+            targets = targets.permute(1,0,2,3).reshape(4, -1)
 
         #first compute binary cross-entropy 
         btl_loss = bi_tempered_logistic_loss(inputs, targets, self.t1, self.t2,

@@ -12,6 +12,7 @@ from models.mxresnet import mxresnet18, mxresnet34, mxresnet50, mxresnet101, mxr
 from models.mres2net import mres2net34, mres2net50
 from models.dynamic_munet import DynamicMUnet
 from models.deeplab.deeplab import DeepLab
+from pretrainedmodels.models.xception import xception as prexception
 
 def UnetMxResnet(config):
     Net = globals()[config.unet_encoder]()
@@ -36,3 +37,8 @@ def MUnetMxResnet(config):
 def deeplab(config):
     return DeepLab(backbone=config.deeplab_backbone, output_stride=16, num_classes=config.num_classes,
                  sync_bn=config.deeplab_sync_bn, freeze_bn=config.deeplab_freeze_bn)
+
+def xception(config):
+    net = prexception(num_classes=1000, pretrained='imagenet')
+    net.last_linear = nn.Linear(in_features=2048, out_features=config.num_classes, bias=True)
+    return net

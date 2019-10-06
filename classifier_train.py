@@ -25,8 +25,8 @@ from functools import partial
 
 from models import model_list
 from modules.losses import SteelLoss
-from modules.metrics import accuracy, dice
-from utils.databunch import segmenter_data_bunch
+from modules.metrics import classifier_accuracy as accuracy
+from utils.databunch import classifier_data_bunch
 from utils.callbacks import SaveBestModel
 
 #from radam import *
@@ -43,7 +43,7 @@ from modules.ranger import *
 torch.backends.cudnn.benchmark = True
 fastprogress.MAX_COLS = 80
 
-from config.config import config
+from config.cconfig import config
 
 
 def fit_with_annealing(learn:Learner, num_epoch:int, lr:float=defaults.lr, annealing_start:float=0.7,
@@ -81,7 +81,7 @@ def train(config, get_learn=False):
     elif opt=='rangernovo': opt_func=partial(RangerNovo)
     elif opt=='rangerlars':opt_func=partial(RangerLars)
 
-    data = segmenter_data_bunch(config=config)
+    data = classifier_data_bunch(config=config)
 
     bs_rat = config.batch_size/bs_one_gpu   #originally bs/256
     if gpu is not None: bs_rat *= max(num_distrib(), 1)
@@ -102,7 +102,7 @@ def train(config, get_learn=False):
     callback_fns=[WandbCallback] if (config.wandb and not get_learn) else []
 
     learn = (Learner(data, net, wd=config.weight_decay, opt_func=opt_func,
-             metrics=[accuracy,dice],
+             metrics=[accuracy],
              bn_wd=False, true_wd=True,
              loss_func = loss_func,
              # loss_func = LabelSmoothingCrossEntropy(),
@@ -111,7 +111,7 @@ def train(config, get_learn=False):
             )
 
     if config.wandb and not get_learn:
-        wandb.init(project="Severstal Steel Defect", name=config.exp_name, config=config,
+        wandb.init(project="Severstal Steel Defect Classifier", name=config.exp_name, config=config,
                     notes=config.desc)
 
     print("Learn path: ", learn.path)
